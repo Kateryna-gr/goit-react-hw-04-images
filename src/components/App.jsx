@@ -1,4 +1,3 @@
-import { Component } from 'react';
 import { fetchImages } from 'api';
 import { ImageGallery } from './image-gallery/image-gallery';
 import { SearchBar } from './search-bar/search-bar';
@@ -6,80 +5,89 @@ import { Container } from './container.styled';
 import { Button } from 'components/button/button';
 import { Loader } from 'components/loader/loader';
 import { NoImages } from './image-gallery/image-gallery.styled';
+import { useState, useEffect } from 'react';
 
-export class App extends Component {
-  state = {
-    images: [],
-    query: '',
-    page: 0,
-    perPage: 12,
-    isLoading: false,
-  };
+export const App = () => {
+  const [images, setImages] = useState([]);
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const perPage = 12;
+  const [isLoading, setIsLoading] = useState(false);
 
-  onInput = value => {
-    console.log(value);
-    if (value && this.state.query !== value) {
-      this.setState({ query: value });
-      this.onSearch();
+  const onInput = value => {
+    if (value && query !== value) {
+      setQuery(value);
     }
   };
 
-  async onSearch() {
-    console.log(this.state.query);
-    this.setState({ isLoading: true });
-    try {
-      const response = await fetchImages(this.state.query, 1);
-      this.setState({ images: response.hits, page: 1 });
-      if (this.state.page > response.totalHits / this.state.perPage + 1) {
-        this.setState({ page: 0 });
+  const loadMoreImages = () => {
+    console.log(page);
+    const nextPage = page + 1;
+    setPage(nextPage);
+  };
+
+  useEffect(() => {
+    if (!query) {
+      return;
+    }
+
+    async function onLoadImages() {
+      setIsLoading(true);
+      try {
+        const response = await fetchImages(query, 1);
+        console.log(response.totalHits);
+        if (response.totalHits === 0) {
+          setImages([]);
+          setPage(0);
+        } else {
+          setImages([...response.hits]);
+          setPage(2);
+        }
+      } catch (error) {
+        setPage(0);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      this.setState({ error, page: 0 });
-    } finally {
-      this.setState({ isLoading: false });
     }
-    console.log(this.state);
-  }
 
-  loadMoreImages = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
-    this.onLoadMore();
-  };
+    onLoadImages();
+  }, [query]);
 
-  async onLoadMore() {
-    this.setState({ isLoading: true });
-    try {
-      const response = await fetchImages(this.state.query, this.state.page);
-      this.setState(prevState => ({
-        images: [...prevState.images, ...response.hits],
-      }));
-      if (this.state.page > response.totalHits / 12 + 1) {
-        this.setState({ page: 0 });
+  useEffect(() => {
+    console.log(page);
+    if (!query || !page) {
+      return;
+    }
+    async function onLoadMoreImages() {
+      setIsLoading(true);
+      try {
+        const response = await fetchImages(query, page);
+        console.log(response.totalHits);
+        if (page > response.totalHits / perPage) {
+          setPage(0);
+        }
+        setImages(prevState => [...prevState, ...response.hits]);
+      } catch (error) {
+        setPage(0);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      this.setState({ error, page: 0 });
-    } finally {
-      this.setState({ isLoading: false });
     }
-    console.log(this.state);
-  }
 
-  render() {
-    const { images, page, isLoading } = this.state;
-    return (
-      <Container>
-        <SearchBar searchImages={this.onInput} />
+    onLoadMoreImages();
+  }, [query, page]);
 
-        {images.length ? (
-          <ImageGallery images={images} />
-        ) : (
-          <NoImages>No images</NoImages>
-        )}
-        {isLoading && <Loader />}
-        {page > 0 && <Button loadMore={this.loadMoreImages} />}
-      </Container>
-    );
-  }
-}
+  return (
+    <Container>
+      <SearchBar searchImages={onInput} />
+
+      {images.length ? (
+        <ImageGallery images={images} />
+      ) : (
+        <NoImages>No images</NoImages>
+      )}
+      {isLoading && <Loader />}
+      {page > 1 && <Button loadMore={loadMoreImages} />}
+    </Container>
+  );
+};
