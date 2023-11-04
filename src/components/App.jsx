@@ -10,38 +10,40 @@ import { useState, useEffect } from 'react';
 export const App = () => {
   const [images, setImages] = useState([]);
   const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
   const perPage = 12;
   const [isLoading, setIsLoading] = useState(false);
 
-  const onInput = value => {
+  const onSearch = value => {
     if (value && query !== value) {
       setQuery(value);
+      setPage(1);
+      setImages([]);
+      setIsLoading(true);
     }
   };
 
   const loadMoreImages = () => {
-    console.log(page);
     const nextPage = page + 1;
     setPage(nextPage);
+    setIsLoading(true);
   };
 
   useEffect(() => {
-    if (!query) {
+    if (!query || !page) {
       return;
     }
-
     async function onLoadImages() {
-      setIsLoading(true);
       try {
-        const response = await fetchImages(query, 1);
-        console.log(response.totalHits);
+        const response = await fetchImages(query, page);
+        if (page > response.totalHits / perPage) {
+          setPage(0);
+        }
         if (response.totalHits === 0) {
           setImages([]);
           setPage(0);
         } else {
-          setImages([...response.hits]);
-          setPage(2);
+          setImages(prevState => [...prevState, ...response.hits]);
         }
       } catch (error) {
         setPage(0);
@@ -51,35 +53,11 @@ export const App = () => {
     }
 
     onLoadImages();
-  }, [query]);
-
-  useEffect(() => {
-    console.log(page);
-    if (!query || !page) {
-      return;
-    }
-    async function onLoadMoreImages() {
-      setIsLoading(true);
-      try {
-        const response = await fetchImages(query, page);
-        console.log(response.totalHits);
-        if (page > response.totalHits / perPage) {
-          setPage(0);
-        }
-        setImages(prevState => [...prevState, ...response.hits]);
-      } catch (error) {
-        setPage(0);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    onLoadMoreImages();
   }, [query, page]);
 
   return (
     <Container>
-      <SearchBar searchImages={onInput} />
+      <SearchBar searchImages={onSearch} />
 
       {images.length ? (
         <ImageGallery images={images} />
@@ -87,7 +65,7 @@ export const App = () => {
         <NoImages>No images</NoImages>
       )}
       {isLoading && <Loader />}
-      {page > 1 && <Button loadMore={loadMoreImages} />}
+      {page > 0 && !isLoading && <Button loadMore={loadMoreImages} />}
     </Container>
   );
 };
